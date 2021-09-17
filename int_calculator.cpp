@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include <vector>
 #include <cmath>
 #include <climits>
@@ -70,12 +71,12 @@ constexpr char VARS_VIEW = 'v';
 
 // Token program keywords
 //--------------------------------------------
-const string quit_name = "quit";
-const string POWER_NAME = "pow";
-const string CONST_NAME = "const";
-const string VARS_VIEW_NAME = "vars_view";
-const string SQRT_NAME = "sqrt";
-const string HELP_NAME = "help";
+constexpr char* quit_name = "quit";
+constexpr char* POWER_NAME = "pow";
+constexpr char* CONST_NAME = "const";
+constexpr char* VARS_VIEW_NAME = "vars_view";
+constexpr char* SQRT_NAME = "sqrt";
+constexpr char* HELP_NAME = "help";
 
 // Token program keywords can not be used as variable name
 const vector<char> NOT_VARIABLES_TOKENS = { quit, SQRT, HELP, print, POWER, declaration_key,
@@ -162,8 +163,7 @@ string get_name(const Token& t) {
 	}
 }
 
-struct Manual {
-	string manual_string = string("MANUAL for simple calculator. \n\
+const string MANUAL_STRING = string("MANUAL for simple calculator. \n\
 Using only int type numbers and variables for calculation.\n\
 Max number for int is ") + to_string(INT_MAX) +
 string(". Min number for int is ") + to_string(INT_MIN) +
@@ -199,19 +199,6 @@ To define constant 'variable' enter: " + string(1, declaration_key) + " " + CONS
 To display already defined variables enter " + VARS_VIEW_NAME + "\n\
 To quit enter " + quit_name + "\n\
 To display this manual enter " + HELP_NAME + " case insensitive \n";
-};
-
-Manual manual;
-
-char get_char() {
-	char ch;
-	cin.get(ch);
-	if(!cin) {
-		cout << "Exit \n";
-		exit(0);
-	}
-	return ch;
-}
 
 // Token_stream class
 //--------------------------------------------
@@ -219,6 +206,7 @@ class Token_stream {
 private:
 	bool full;
 	Token buffer;
+   istream& input_stream;
 	
 	Token get_number();
 	Token get_single_char_token(char first);
@@ -226,8 +214,12 @@ private:
 	Token get_alphanum_token(char first);
 	Token get_other_token(char c);
 public:
-	Token_stream() :full(false), buffer(0) { }
+   Token_stream(istream& input_stream) 
+            :full(false), buffer(0), input_stream(input_stream) { 
+               
+   }
 	
+	char get_char();
 	Token get();
 	void unget(Token& t);
 	void ignore(char, char);
@@ -238,13 +230,23 @@ public:
 	string get_name_string();
 };
 
+char Token_stream::get_char() {
+	char ch;
+	input_stream.get(ch);
+	if(! input_stream) {
+		cout << "Exit \n";
+		exit(0);
+	}
+	return ch;
+}
+
 string Token_stream::get_name_string() {
 	string s = "";
 	char c;
-	while (cin.get(c) && ('_' == c || isalpha(c) || isdigit(c)))
+	while (input_stream.get(c) && ('_' == c || isalpha(c) || isdigit(c)))
 		s += c;
 			
-	cin.unget();   // to save non-alphanumerical character in input stream
+	input_stream.unget();   // to save non-alphanumerical character in input stream
 	return s;
 }
 
@@ -265,8 +267,8 @@ void Token_stream::unget(Token& t) {
 // function get only non-negative numbers, because every token of '-' char is get separately from number
 Token Token_stream::get_number() {	 
 	double val;
-	cin >> val;
-	if (!cin)
+	input_stream >> val;
+	if (!input_stream)
 		error("Attempt to reading number has failed");
 	if (val != -(long)(INT_MIN) && false == is_integer(val))  // absolute value of labs(INT_MIN) == labs(INT_MAX + 1)
 		error("input value is not int type ");
@@ -285,7 +287,7 @@ Token Token_stream::get_single_char_token(char first) {
 		
 	Token result = EMPTY_TOKEN;
 	char next = get_char();   // get next char after 'first' char
-	cin.unget();   // to save 'next' character in input stream
+	input_stream.unget();   // to save 'next' character in input stream
 	if (first == declaration_key) {
 		if (next != '\n' && isspace(next))
 			result = Token(declaration_key);
@@ -300,7 +302,7 @@ bool Token_stream::is_help_token(string s) {
 		return false;
 	
 	char next = get_char();   // get next char after string s
-	cin.unget();   // to save 'next' character in input stream	
+	input_stream.unget();   // to save 'next' character in input stream	
 	if (next == print || isspace(next))
 		return true;
 	else if (! isalnum(next))
@@ -349,7 +351,7 @@ bool Token_stream::is_constant_token(Token& t) {
 		t = get_token_after_SPACE();  // if constant token then get next token (should be variable name)
 		if (t.kind == '=' || t.kind == NEW_LINE) {
 			unget(t);
-			error(CONST_NAME + " is keyword and can not be used as variable. \n",
+			error(string(CONST_NAME) + " is keyword and can not be used as variable. \n",
 				"After this keyword must be one new declared name, = as assignment operator, value");
 		}
 	}
@@ -371,7 +373,7 @@ Token Token_stream::get_token_after_SPACE() {
 	while (t.kind == SPACE)
 		t = get();
 	if (t.kind == HELP)
-		throw manual; 
+		throw MANUAL_STRING; 
 
 	return t;
 }
@@ -396,7 +398,7 @@ Token Token_stream::get() {
 			return Token(ch);
 		case '0': case '1': case '2': case '3': case '4':
 		case '5': case '6': case '7': case '8': case '9':
-			cin.unget();
+			input_stream.unget();
 			return get_number();
 		default:
 			return get_other_token(ch);
@@ -412,15 +414,11 @@ void Token_stream::ignore(char c1, char c2) {
 
 	char ch;
 	do {
-		cin.get(ch);
-	} while (cin && ch != c1 && ch != c2);
+		input_stream.get(ch);
+	} while (input_stream && ch != c1 && ch != c2);
 
 	return;
 }
-
-// global variable of type Token_stream 
-//--------------------------------------------
-Token_stream ts;
 
 // Variable struct
 struct Variable {
@@ -523,17 +521,17 @@ int factorial(double number) {
 }
 
 // declarations of primary in calculator
-double primary();
+double primary(Token_stream& ts);
 
 // mathematical operations part 2
 //--------------------------------------------
-int square_root() {
+int square_root(Token_stream& ts) {
 	Token t = ts.get_token_after_SPACE();
 	ts.unget(t);
 	if ('(' != t.kind && '[' != t.kind && '{' != t.kind) 
 		error("number of square root must be in brackets");
 	
-	double x = primary();
+	double x = primary(ts);
 	if (x < 0)
 		error("Real solution for square root for number < 0 does not exist");
 	if (false == is_integer(x))
@@ -641,7 +639,7 @@ In order to create 2 separate expressions, separate these characters with a sepa
 (8) 9
 */
 //--------------------------------------------
-void validate_next_token(Token& t) {
+void validate_next_token(Token_stream& ts, Token& t) {
 	Token next_token = ts.get();
 	char next = next_token.kind;
 	switch (t.kind) {
@@ -678,22 +676,32 @@ opening bracket or sqrt or power");
 // global variables to check calculator input data correction (to validate)
 // in mathematical operations this global variables validate only sequence of input data
 //--------------------------------------------
-short round_braces = 0;   // counter opening round braces - curly braces can not be inside square or round brackets
-short square_braces = 0;  // counter opening square braces - square braces can not be inside round brackets
+struct Braces_counter {
+   short round_braces;   // counter opening round braces - curly braces can not be inside square or round brackets
+   short square_braces;  // counter opening square braces - square braces can not be inside round brackets
+   Braces_counter() : round_braces(0), square_braces(0) { }
+};
+Braces_counter braces_counter;
 
 bool operation = false;      // can not accept sequence of +- +- ++ /- *+ *- and
 // other mixes of 2 or more subsequent operators not separated by brackets
 
-bool assignment_chance = false; // to signal assignment chance after detect first token as name of variable
-bool assignment_done = false;   // when assignment has done to signal assignment completed and 
-// other assignment can not exist in expression
-short names_counter = 0;  // counter of variables to control number of variables before '='
+struct Assignment_validator {
+   bool assignment_chance; // to signal assignment chance after detect first token as name of variable
+   bool assignment_done;   // when assignment has done to signal assignment completed and 
+   // other assignment can not exist in expression
+   short names_counter;  // counter of variables to control nummber of variables before '='
+   
+   Assignment_validator() : 
+      assignment_chance(false), assignment_done(false), names_counter(0) {}
+};
+Assignment_validator assignment_validator;
 
-int expression();
+int expression(Token_stream& ts);
 
 void token_error(const string& message, const Token& t);
 
-char get_last_bracket_kind(char bracket_kind) {
+char get_last_bracket_kind(const char bracket_kind) {
 	switch(bracket_kind) {
 		case '(':
 			return ')';
@@ -706,20 +714,20 @@ char get_last_bracket_kind(char bracket_kind) {
 	}
 }
 
-void increment_bracket_kind(char bracket_kind) {
+void increment_bracket_kind(const char bracket_kind) {
 	switch(bracket_kind) {
 		case '(':
-			round_braces++;
+			braces_counter.round_braces++;
 			break;
 		case '[':
-			if (round_braces > 0) 
+			if (braces_counter.round_braces > 0) 
 				error("Before close brace ), square brace [ is not accepted");
-			square_braces++;
+			braces_counter.square_braces++;
 			break;
 		case '{':
-			if (square_braces > 0)
+			if (braces_counter.square_braces > 0)
 				error("Before close brace ], curly brace { is not accepted");
-			if (round_braces > 0)
+			if (braces_counter.round_braces > 0)
 				error("Before close brace ), curly brace { is not accepted");
 			break;
 		default:
@@ -727,13 +735,13 @@ void increment_bracket_kind(char bracket_kind) {
 	}
 }
 
-void decrement_bracket_kind(char bracket_kind) {
+void decrement_bracket_kind(const char bracket_kind) {
 	switch(bracket_kind) {
 		case '(':
-			round_braces--;
+			braces_counter.round_braces--;
 			break;
 		case '[':
-			square_braces--;
+			braces_counter.square_braces--;
 			break;
 		case '{':
 			break;
@@ -742,24 +750,24 @@ void decrement_bracket_kind(char bracket_kind) {
 	}
 }
 
-int power() {
+int power(Token_stream& ts) {
 	int base, exponent;
 	Token t = ts.get_token_after_SPACE();
 	try {
 		char bracket_kind = t.kind;
 		char last_bracket = get_last_bracket_kind(bracket_kind);
 		increment_bracket_kind(bracket_kind);
-		base = expression();
+		base = expression(ts);
 		t = ts.get_token_after_SPACE();
 		if (',' != t.kind)
 			error("in power calculation after base and before exponent must be ", ',');
-		exponent = expression();  
+		exponent = expression(ts);  
 		t = ts.get_token_after_SPACE();
 		if (t.kind != last_bracket) {
 			ts.unget(t);
 			error("closed bracket expected: ", last_bracket);
 		}
-		validate_next_token(t); 
+		validate_next_token(ts, t); 
 		decrement_bracket_kind(bracket_kind);
 	}
 	catch(runtime_error& e) {
@@ -774,16 +782,16 @@ base, ',' and exponent must be in only one pair of brackets after name of pow");
 	return result;
 }
 
-int brackets_expression(char bracket_kind) {
+int brackets_expression(Token_stream& ts, const char bracket_kind) {
 	char last_bracket = get_last_bracket_kind(bracket_kind);
 	increment_bracket_kind(bracket_kind);
-	int result = expression();
+	int result = expression(ts);
 	Token t = ts.get_token_after_SPACE();
 	if (t.kind != last_bracket) {
 		ts.unget(t);
 		error("closed bracket expected: ", last_bracket);
 	}
-	validate_next_token(t); 
+	validate_next_token(ts, t); 
 	decrement_bracket_kind(bracket_kind);
 
    return result;
@@ -801,14 +809,14 @@ void token_error(const string& message, const Token& t) {
 
 // calculator functions to token process and calculations
 //-------------------------------------------- 
-double primary() {
+double primary(Token_stream& ts) {
 	double result;
 	Token t = ts.get_token_after_SPACE();
 	switch (t.kind) {
 	case '(':
 	case '[':
 	case '{':
-		result = brackets_expression(t.kind);
+		result = brackets_expression(ts, t.kind);
 		operation = false;
 		break;
 	case '-':
@@ -816,46 +824,46 @@ double primary() {
 		if (operation)
 			error("Next token after operator can not be + or -");
 		operation = true;
-		result = '+' == t.kind ? primary() : -primary();
+		result = '+' == t.kind ? primary(ts) : -primary(ts);
 		break;
-	case NEW_LINE:   // to allow many lines calculations without ignoring new line tokens in cin and Token_stream
-		return primary();  // return before end of method to avoid set assignment_chance to false for first entered name
+	case NEW_LINE:   // to allow many lines calculations without ignoring new line tokens in input_stream and Token_stream
+		return primary(ts);  // return before end of method to avoid set assignment_chance to false for first entered name
 								// to allow assignment divided in many lines
 	case number:
 		result = t.value;
 		operation = false;
-		validate_next_token(t);
+		validate_next_token(ts, t);
 		break;
 	case NAME:
 		result = symbols.get_value(t.name);
 		operation = false;
-		validate_next_token(t);
-		if(assignment_chance)
-			names_counter++;
+		validate_next_token(ts, t);
+		if(assignment_validator.assignment_chance)
+			assignment_validator.names_counter++;
 		return result;    // return before end of method to avoid set assignment_chance to false for first entered name
 			
 	default:
 		token_error("unrecognized primary: ", t);
 	}
-	if(assignment_chance)
-		assignment_chance = false;   // after get tokens other than NAME, assignment_chance is set to false
+	if(assignment_validator.assignment_chance)
+		assignment_validator.assignment_chance = false;   // after get tokens other than NAME, assignment_chance is set to false
 		
 	return result;
 }
 
-int factor();
+int factor(Token_stream& ts);
 
 // before primary may be minus or sqrt
 // skip plus because is not problematic for factorial calculations
 // which order of operations has precedence over * / % - + 
-double before_primary(Token& t, bool& minus_number) {
+double before_primary(Token_stream& ts, Token& t, bool& minus_number) {
 	double result;
 	switch (t.kind) {
 		case SQRT:
-			result = square_root();
+			result = square_root(ts);
 			break;
 		case POWER:
-			result = power();
+			result = power(ts);
 			break;
 		case '-':    // to allow minus '-' as first token in expression with factorial, which can not accept minus numbers
 						 // and generate errors for -4! == -24  and  (-4)!
@@ -864,11 +872,11 @@ double before_primary(Token& t, bool& minus_number) {
 			minus_number = true;    // ok: -4! == -24    error: (-4)! 
 			operation = true;
 			t = ts.get_token_after_SPACE();
-			result = before_primary(t, minus_number);
+			result = before_primary(ts, t, minus_number);
 			break;
 		default: 
 			ts.unget(t);
-			result = primary();
+			result = primary(ts);
 			if (false == minus_number && result == -(long)(INT_MIN))   // absolute value of labs(INT_MIN) == labs(INT_MAX + 1)
 				error("Max number for int is ", INT_MAX);
 			break;
@@ -878,22 +886,23 @@ double before_primary(Token& t, bool& minus_number) {
 
 // after primary may be tokens: power(exponent), factorial and assignment '='
 // which order of operations has precedence over * / % - + 
-double after_primary(double x, Token& t) {
+double after_primary(Token_stream& ts, double x, Token& t) {
 	double result;
 	switch (t.kind) {
 		case '!':    // to allow minus '-' as first char in expression with factorial
 			if (operation)
 				error("Next token after operator can not be '!'");
 			result = factorial(x);  // -4! == -24    (-4)! error
-			validate_next_token(t);
+			validate_next_token(ts, t);
 			break;
 		case '=': 
-		if (! assignment_chance || assignment_done || names_counter > 1)
+		if (! assignment_validator.assignment_chance || assignment_validator.assignment_done 
+            || assignment_validator.names_counter > 1)
 			error("Assignment operator must be only one in expression and \n must occur after variable name directly \
 and if variable name is first primary in expression ");
-				assignment_done = true;
-				assignment_chance = false;
-				result = expression();
+				assignment_validator.assignment_done = true;
+				assignment_validator.assignment_chance = false;
+				result = expression(ts);
 				break;
 		default:
 			ts.unget(t);
@@ -904,12 +913,12 @@ and if variable name is first primary in expression ");
 
 // calculate of factors (square root, power, factorial)
 // which order of operations has precedence over * / % - + 
-int factor() {
+int factor(Token_stream& ts) {
 	bool minus_number = false;
 	Token t = ts.get_token_after_SPACE();
-	double result = before_primary(t, minus_number);
+	double result = before_primary(ts, t, minus_number);
 	t = ts.get_token_after_SPACE();
-	result = after_primary(result, t);
+	result = after_primary(ts, result, t);
 	if (minus_number)
 		result = -result;
 	if (false == is_integer(result))
@@ -919,20 +928,20 @@ int factor() {
 
 // calculate of elements / % * (quotient, modulo quotient, product)
 // which order of operations has precedence over - + 
-int term() {
-	double left = factor();
+int term(Token_stream& ts) {
+	double left = factor(ts);
 	operation = true;
 	while (true) {
 		Token t = ts.get_token_after_SPACE();
 		switch (t.kind) {
 		case '*':
-			left *= factor();
+			left *= factor(ts);
 			if (false == is_integer(left))
 				error("result of multiplication is not int type ");
 			break;
 		case '/':
 		case '%': {	
-			int f = factor();
+			int f = factor(ts);
 			if (f == 0) 
 				error("divide by zero");
 			if (t.kind == '%') 
@@ -953,20 +962,20 @@ int term() {
 
 // calculate of elements sums and differences
 // which order of operations is the lowest
-int expression() {
+int expression(Token_stream& ts) {
 	operation = false;
-	double left = term();
+	double left = term(ts);
 	operation = true;
 	while (true) {
 		Token t = ts.get_token_after_SPACE();
 		switch (t.kind) {
 		case '+':
-			left += term();
+			left += term(ts);
 			if (false == is_integer(left))
 				error("result of addition is not int type ");
 			break;
 		case '-':
-			left -= term();
+			left -= term(ts);
 			if (false == is_integer(left))
 				error("result of subtraction is not int type ");
 			break;
@@ -977,15 +986,15 @@ int expression() {
 	}
 }
 
-void reset_global_variables() {
-	round_braces = 0;   // set counter opening round braces to 0 to cleaning before next operations
-	square_braces = 0;  // set counter opening square braces to 0 to cleaning before next operations
-	assignment_chance = false;
-	assignment_done = false;
-	names_counter = 0;
+void reset_statement_status() {
+	braces_counter.round_braces = 0;   // set counter opening round braces to 0 to cleaning before next operations
+	braces_counter.square_braces = 0;  // set counter opening square braces to 0 to cleaning before next operations
+	assignment_validator.assignment_chance = false;
+	assignment_validator.assignment_done = false;
+	assignment_validator.names_counter = 0;
 }
 
-int declaration() {
+int declaration(Token_stream& ts) {
 	Token t = ts.get_token_after_SPACE();
 	bool is_constant = ts.is_constant_token(t);
 	ts.check_name(t);
@@ -994,52 +1003,49 @@ int declaration() {
 		ts.unget(t2);
 		error("= must be directly after only one variable name in declaration of ", t.name);
 	}
-	int value = expression();
+	int value = expression(ts);
 	symbols.define_name(t.name, value, is_constant);
 	return value;
 }
 
-int statement() {
-	reset_global_variables();
+int statement(Token_stream& ts) {
+	reset_statement_status();
 	Token t = ts.get_token_after_SPACE();
 	switch (t.kind) {
 		case declaration_key:
 			try {
-				return declaration();
+				return declaration(ts);
 			}
-			catch (Manual&) {
+			catch (string&) {
 				error(HELP_NAME, " are keywords and can not be used as variable");
 			}
 		case NAME: {
-			assignment_chance = true;
+			assignment_validator.assignment_chance = true;
 			ts.unget(t);
-			int value = expression();
-			if (assignment_done) 
+			int value = expression(ts);
+			if (assignment_validator.assignment_done) 
 				symbols.set_value(t.name, value);
 			return value;
 		}
 		default:
 			ts.unget(t);
-			return expression();
+			return expression(ts);
 	}
 }
 
-void clean_up_mess() {
+void clean_up_mess(Token_stream& ts) {
 	ts.ignore(print, NEW_LINE);
-	reset_global_variables();
+	reset_statement_status();
 }
 
-const string prompt = "> ";
-const string result = "= ";
-
-bool is_running() {
+bool is_running(Token_stream& ts, const string prompt) {
 	Token t = EMPTY_TOKEN;
 	bool skipping = true;
 	do {
 		t = ts.get();
 		switch (t.kind) {
 			case HELP:
-				cout << manual.manual_string;
+				cout << MANUAL_STRING;
 				cout << prompt;
 				break;
 			case VARS_VIEW:
@@ -1060,56 +1066,61 @@ bool is_running() {
 	return true;
 }
 
-void calculate() {
+void calculate(Token_stream& ts) {
+   const string prompt = "> ";
+   const string result = "= ";
 	int value = INT_MIN;
 	do {
 		try {
 			cout << prompt;
-			if (false == is_running())
+			if (false == is_running(ts, prompt))
 				return;
-			value = statement();             // separation in call of statement() and
+			value = statement(ts);             // separation in call of statement() and
 			cout << result << value << endl; // call of cout to do not allow display string of result 
 			                                 // before end of writing many lines calculations
 		} 
 		catch (runtime_error& e) {
 			cerr << e.what() << endl;
-			clean_up_mess();
+			clean_up_mess(ts);
 		}
-		catch (Manual& m) {
+		catch (string& m) {
 			system("clear");
-			cout << manual.manual_string;
-			clean_up_mess();
+			cout << m;
+			clean_up_mess(ts);
 		}
 	} while (true);
 }
 
-void enter_key(char key) {
+void enter_key(Token_stream& ts, char key) {
 	cout << "Enter \'" << key << "\' to continue ";
-	char c;
-	while (cin.get(c) && c != key)
-		continue;
+   char c;
+   do {
+      c = ts.get_char();
+   } while (c != key);
 }
 
 void add_predefined_variables() {
 	symbols.define_name("k", 1000, false);
 }
 
-int main()
-try {
-	cout << "Welcome in simple calculator for only int type.\n";
-	cout << manual.manual_string;
-	add_predefined_variables();
-	symbols.print_variables();
-	calculate();
-	return 0;
-}
-catch (exception& e) {
-	cerr << "exception: " << e.what() << endl;
-	enter_key(print);
-	return 1;
-}
-catch (...) {
-	cerr << "unrecognized exception\n";
-	enter_key(print);
-	return 2;
+int main() {
+   Token_stream ts(cin);
+   try {
+      cout << "Welcome in simple calculator for only int type.\n";
+      cout << MANUAL_STRING;
+      add_predefined_variables();
+      symbols.print_variables();
+      calculate(ts);
+      return 0;
+   }
+   catch (exception& e) {
+      cerr << "exception: " << e.what() << endl;
+      enter_key(ts, print);
+      return 1;
+   }
+   catch (...) {
+      cerr << "unrecognized exception\n";
+      enter_key(ts, print);
+      return 2;
+   }
 }
